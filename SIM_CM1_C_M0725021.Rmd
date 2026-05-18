@@ -1,0 +1,175 @@
+---
+title: "Analisis Dataset Sakila"
+author: "Syahar Banu"
+date: "2026-05-17"
+output:
+  html_document:
+    toc: true
+    toc_float: true
+    number_sections: true
+    css: style.css
+---
+
+```{r}
+#Pendahuluan
+#Database Sakila merupakan database contoh dari MySQL yang digunakan untuk mensimulasikan sistem penyewaan film. Database ini memiliki beberapa tabel yang saling berhubungan seperti customer, rental, payment, film, dan category sehingga cocok digunakan untuk proses analisis data.
+
+#Pada laporan ini dilakukan analisis data penyewaan film menggunakan bahasa pemrograman R dan database MySQL. Analisis dilakukan untuk mengetahui kategori film dengan pendapatan tertinggi, jumlah rental terbanyak, serta hubungan antara jumlah rental dan total pendapatan.
+
+#Data dianalisis menggunakan package DBI, RMySQL, dplyr, dan ggplot2. Hasil analisis ditampilkan dalam tiga visualisasi beserta interpretasinya agar informasi lebih mudah dipahami.
+```
+
+```{r message=FALSE, warning=FALSE}
+library(DBI)
+library(RMySQL)
+library(dplyr)
+library(ggplot2)
+library(knitr)
+```
+
+```{r}
+con <- dbConnect(
+  MySQL(),
+  user = "root",
+  password = "banun",
+  dbname = "sakila",
+  host = "localhost"
+)
+
+dbListTables(con)
+```
+
+```{r warning=FALSE}
+#Mengambil data
+
+query <- "
+SELECT 
+    c.name AS kategori,
+    COUNT(r.rental_id) AS jumlah_rental,
+    SUM(p.amount) AS total_pendapatan
+FROM category c
+JOIN film_category fc ON c.category_id = fc.category_id
+JOIN film f ON fc.film_id = f.film_id
+JOIN inventory i ON f.film_id = i.film_id
+JOIN rental r ON i.inventory_id = r.inventory_id
+JOIN payment p ON r.rental_id = p.rental_id
+GROUP BY c.name
+ORDER BY total_pendapatan DESC
+"
+
+sakila_data <- dbGetQuery(con, query)
+
+head(sakila_data)
+```
+
+```{r}
+#Deskripsi data
+
+str(sakila_data)
+summary(sakila_data)
+```
+
+```{r}
+#1. Total Pendapatan Berdasarkan Kategori Film
+#Visualisasi
+ggplot(sakila_data, aes(x = reorder(kategori, total_pendapatan),
+                        y = total_pendapatan)) +
+  geom_bar(stat = "identity") +
+  coord_flip() +
+  labs(
+    title = "Total Pendapatan Berdasarkan Kategori Film",
+    x = "Kategori Film",
+    y = "Total Pendapatan"
+  )
+
+#Analisis 
+kategori_tertinggi <- sakila_data %>%
+  arrange(desc(total_pendapatan)) %>%
+  head(5)
+
+kategori_tertinggi
+  
+#Interpretasi
+#Berdasarkan hasil analisis, terdapat beberapa kategori film yang menghasilkan pendapatan paling tinggi dibandingkan kategori lainnya. Hal ini menunjukkan bahwa kategori tersebut lebih diminati pelanggan sehingga lebih sering disewa.
+
+#Kategori dengan pendapatan tertinggi dapat menjadi fokus utama perusahaan dalam menyediakan stok film maupun strategi promosi. Semakin tinggi jumlah transaksi rental maka semakin besar pula pendapatan yang diperoleh.
+```
+## Persamaan Matematis
+
+$$
+Total\ Pendapatan = \sum Pembayaran
+$$
+
+```{r}
+#2.Jumlah Rental Berdasarkan Kategori Film
+#Visualisasi
+ggplot(sakila_data, aes(x = reorder(kategori, jumlah_rental),
+                        y = jumlah_rental)) +
+  geom_bar(stat = "identity") +
+  coord_flip() +
+  labs(
+    title = "Jumlah Rental Berdasarkan Kategori Film",
+    x = "Kategori Film",
+    y = "Jumlah Rental"
+  )
+
+#Analisis
+rental_terbanyak <- sakila_data %>%
+  arrange(desc(jumlah_rental)) %>%
+  head(5)
+
+rental_terbanyak
+
+  
+#Interpretasi
+#Berdasarkan hasil analisis, diketahui bahwa terdapat kategori film yang memiliki jumlah penyewaan jauh lebih tinggi dibanding kategori lainnya. Hal ini menunjukkan bahwa pelanggan memiliki preferensi tertentu terhadap jenis film tertentu.
+
+#Kategori dengan jumlah rental tertinggi menunjukkan tingkat popularitas yang tinggi di kalangan pelanggan. Informasi ini dapat digunakan perusahaan untuk mempertahankan atau menambah koleksi film pada kategori yang banyak diminati.
+```
+
+## Persamaan Matematis
+
+$$
+Jumlah\ Rental = \sum Transaksi\ Penyewaan
+$$
+
+```{r}
+#3. Hubungan Jumlah Rental dan Total Pendapatan
+#Visualisasi
+ggplot(sakila_data, aes(x = jumlah_rental,
+                        y = total_pendapatan,
+                        label = kategori)) +
+  geom_point() +
+  geom_text(vjust = -0.5, size = 3) +
+  labs(
+    title = "Hubungan Jumlah Rental dan Total Pendapatan",
+    x = "Jumlah Rental",
+    y = "Total Pendapatan"
+  )
+
+#Analisis
+cor(sakila_data$jumlah_rental,
+    sakila_data$total_pendapatan)
+
+
+#Interpretasi
+#Hasil korelasi menunjukkan adanya hubungan positif antara jumlah rental dan total pendapatan. Semakin banyak film yang disewa maka semakin tinggi pula pendapatan yang diperoleh.
+
+#Scatter plot memperlihatkan bahwa sebagian besar kategori film dengan jumlah rental tinggi juga memiliki total pendapatan tinggi. Hal ini menunjukkan bahwa aktivitas penyewaan memiliki pengaruh besar terhadap pemasukan perusahaan rental film.
+```
+
+## Persamaan Matematis
+
+Hubungan antara jumlah rental dan total pendapatan dapat dituliskan sebagai berikut:
+
+$$
+Total\ Pendapatan = Jumlah\ Rental \times Harga\ Sewa
+$$
+
+```{r}
+#Kesimpulan
+#Berdasarkan analisis data pada database Sakila menggunakan R, dapat disimpulkan bahwa setiap kategori film memiliki jumlah penyewaan dan pendapatan yang berbeda-beda. Kategori dengan jumlah rental tinggi cenderung menghasilkan pendapatan yang lebih besar.
+
+#Penggunaan R dan database MySQL sangat membantu dalam proses pengolahan data, analisis, serta visualisasi data. Dengan adanya visualisasi dan interpretasi data, informasi yang diperoleh menjadi lebih mudah dipahami dan dapat digunakan sebagai dasar pengambilan keputusan.
+```
+
